@@ -1,0 +1,25 @@
+# Examples (local only)
+/examples/
+
+# Claude
+CLAUDE.md
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# Test / coverage artefacts
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Generated output
+*.html
+
+# OS
+.DS_Store
