@@ -17,8 +17,8 @@ resulting risk grid for the optimal path.
 
 | BN | Nodes | Grid | State combos | Precompute | Risk map (median) | A* path (median) |
 |----|-------|------|-------------|-----------|------------------|------------------|
-| slope → risk | 2 | 400 × 400 | 2 | 1 ms | 1.6 ms | 397 ms |
-| AUV (8-node) | 8 | 400 × 400 | 243 | 27 ms | 6 ms | 454 ms |
+| slope → risk | 2 | 400 × 400 | 2 | 1 ms | 1.6 ms | 16 ms |
+| AUV (8-node) | 8 | 400 × 400 | 243 | 27 ms | 6 ms | 17 ms |
 
 > Benchmarked with `tests/test_benchmark.py` on a MacBook Air 2025 (M4, 16 GB).
 
@@ -311,7 +311,7 @@ risk-star/
 ├── src/risk_aware_a_star/
 │   ├── __init__.py        # public exports: RiskAwareAStarPlanner, PathResult
 │   ├── planner.py         # RiskAwareAStarPlanner + PathResult dataclass
-│   ├── _astar.py          # pure-Python heapq A* implementation
+│   ├── _astar.py          # Numba-JIT A* implementation
 │   ├── _risk.py           # extract_risk_grid() helper
 │   └── _coords.py         # coordinate conversion utilities
 ├── examples/

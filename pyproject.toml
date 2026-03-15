@@ -2,7 +2,7 @@
 name = "risk-aware-a-star"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["geobn>=0.1", "numpy", "pyproj", "affine"]
+dependencies = ["geobn>=0.1", "numpy", "numba", "pyproj", "affine"]
 
 # TODO: remove [tool.uv.sources] below once geobn 0.2.0 is published to PyPI.
 # geobn/  is a local clone (gitignored) needed until save_precomputed() /
