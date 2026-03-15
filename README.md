@@ -52,9 +52,9 @@ The public API is deliberately minimal: construct a `RiskAwareAStarPlanner`, cal
 ```
 OFFLINE (workstation)
 ───────────────────────────────────────────────────────────────────
-Raster inputs  →  geobn BayesianNetwork
-                        │
-               bn.precompute([risk_node])  →  bn.save_precomputed("table.npz")
+geobn BayesianNetwork
+        │
+bn.precompute([risk_node])  →  bn.save_precomputed("table.npz")
 
 RUNTIME (robot)
 ───────────────────────────────────────────────────────────────────
@@ -105,17 +105,6 @@ pip install risk-aware-a-star
 import geobn
 
 bn = geobn.load("auv_mission.bif")
-
-bn.set_input("Slope",             geobn.RasterSource("slope.tif"))
-bn.set_input("Ruggedness",        geobn.RasterSource("ruggedness.tif"))
-bn.set_input("Current",           geobn.RasterSource("current.tif"))
-bn.set_input("Altitude_setpoint", geobn.ConstantSource(5.0))
-
-bn.set_discretization("Slope",             [0,     10,    15,    90],  ["Low", "Medium", "High"])
-bn.set_discretization("Ruggedness",        [0,     0.005, 0.01,  1.0], ["Low", "Medium", "High"])
-bn.set_discretization("Current",           [0,     0.08,  0.15,  2.0], ["Low", "Medium", "High"])
-bn.set_discretization("Altitude_setpoint", [0,     5,     20,  200],   ["Close", "Moderate", "Far"])
-
 bn.precompute(["auv_risk"])
 bn.save_precomputed("table.npz")
 ```
