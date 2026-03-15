@@ -152,6 +152,39 @@ spatially but need not share the same resolution or CRS.
 
 ---
 
+## Replanning and reuse
+
+### Multiple routes on a fixed risk map
+
+```python
+planner.load_precomputed("table.npz")
+
+# Risk grid is computed once and cached automatically.
+route_a = planner.find_path((61.300, 5.050), (61.318, 5.085))
+route_b = planner.find_path((61.305, 5.060), (61.322, 5.090))
+route_c = planner.find_path((61.310, 5.070), (61.320, 5.095))
+# All three share the same risk grid — only A* runs for routes b and c.
+```
+
+### Dynamic replanning when sensor data changes
+
+```python
+import numpy as np
+
+planner.load_precomputed("table.npz")
+
+# Plan with initial current measurements.
+route_1 = planner.find_path(START, GOAL)
+
+# New current raster arrives from onboard sensor.
+planner.update_input("Current", geobn.RasterSource("current_updated.tif"))
+
+# Risk grid is recomputed automatically on the next find_path() call.
+route_2 = planner.find_path(START, GOAL)
+```
+
+---
+
 ## API Reference
 
 ### `RiskAwareAStarPlanner`
