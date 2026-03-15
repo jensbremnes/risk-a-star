@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from affine import Affine
 
-from riskstar._coords import (
+from risk_aware_a_star._coords import (
     _convert_path,
     _path_length_px,
     crs_to_pixel,

@@ -7,7 +7,7 @@ import math
 import numpy as np
 import pytest
 
-from riskstar._astar import astar
+from risk_aware_a_star._astar import astar
 
 
 def _uniform(rows: int, cols: int, value: float = 0.0) -> np.ndarray:

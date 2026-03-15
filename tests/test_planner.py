@@ -1,11 +1,11 @@
-"""Integration tests for RiskStarPlanner."""
+"""Integration tests for RiskAwareAStarPlanner."""
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
 
-from riskstar import PathResult, RiskStarPlanner
+from risk_aware_a_star import PathResult, RiskAwareAStarPlanner
 from conftest import GOAL_LATLON, START_LATLON
 
 
@@ -14,7 +14,7 @@ from conftest import GOAL_LATLON, START_LATLON
 # ---------------------------------------------------------------------------
 
 def _make_planner(tiny_bn, risk_weight=1.0):
-    return RiskStarPlanner(
+    return RiskAwareAStarPlanner(
         bn=tiny_bn,
         risk_node="risk",
         risk_state="dangerous",

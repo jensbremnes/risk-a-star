@@ -1,4 +1,4 @@
-# riskstar
+# risk-aware-a-star
 
 **Risk-informed A\* path planning using Bayesian network risk models**
 
@@ -9,23 +9,23 @@
 
 ## Overview
 
-`riskstar` solves the problem of path planning through terrain or environments where risk
+`risk-aware-a-star` solves the problem of path planning through terrain or environments where risk
 is spatially variable modeled through Bayesian networks. Traditional shortest-path
-algorithms minimise distance; `riskstar` minimises a combined objective that trades
+algorithms minimise distance; `risk-aware-a-star` minimises a combined objective that trades
 distance against risk, producing routes that are longer when necessary to avoid
 high-probability hazard zones.
 
 The library pairs a [`geobn`](https://github.com/your-org/geobn) Bayesian network
 with an A\* planner. `geobn` ingests raster inputs (GeoTIFFs, NumPy arrays, or
 scalar constants), runs discrete Bayesian inference over a 2-D spatial grid, and
-produces a per-pixel marginal probability for any node in the network, for example, collision probability. `riskstar`
+produces a per-pixel marginal probability for any node in the network, for example, collision probability. `risk-aware-a-star`
 extracts that marginal as a risk grid and feeds it into A\* with a risk-weighted step
 cost, returning an ordered list of waypoints together with summary statistics.
 
 Typical use cases include AUV mission planning over seafloor hazard maps, mountaineering
 and search-and-rescue route optimisation over avalanche or terrain-difficulty models,
 and any domain where a spatial risk raster can be derived from a probabilistic model.
-The public API is deliberately minimal: construct a `RiskStarPlanner`, call
+The public API is deliberately minimal: construct a `RiskAwareAStarPlanner`, call
 `precompute()` once, then call `find_path()` for each query.
 
 ---
@@ -67,10 +67,10 @@ etc.) are treated as impassable barriers — A\* will never route through them.
 
 ```bash
 # Using uv (recommended)
-uv add riskstar
+uv add risk-aware-a-star
 
 # Or with pip
-pip install riskstar
+pip install risk-aware-a-star
 ```
 
 **Requirements:** Python ≥ 3.11, `geobn>=0.1`, `numpy`, `pyproj`, `affine`.
@@ -87,7 +87,7 @@ replace the placeholder coordinates with your survey start/end points.
 import numpy as np
 from affine import Affine
 import geobn
-from riskstar import RiskStarPlanner
+from risk_aware_a_star import RiskAwareAStarPlanner
 
 # ── 1. Synthetic seafloor rasters (200 × 200 grid, 10 m resolution) ───────────
 rng  = np.random.default_rng(0)
@@ -118,7 +118,7 @@ bn.set_discretization("Current",           [0,     0.08,  0.15,  2.0], ["Low", "
 bn.set_discretization("Altitude_setpoint", [0,     5,     20,  200],   ["Close", "Moderate", "Far"])
 
 # ── 3. Planner ────────────────────────────────────────────────────────────────
-planner = RiskStarPlanner(
+planner = RiskAwareAStarPlanner(
     bn=bn,
     risk_node="auv_risk",
     risk_state={"Medium": 0.5, "High": 1.0},       # weighted multi-state cost
@@ -160,10 +160,10 @@ spatially but need not share the same resolution or CRS.
 
 ## API Reference
 
-### `RiskStarPlanner`
+### `RiskAwareAStarPlanner`
 
 ```python
-RiskStarPlanner(bn, risk_node, risk_state, risk_weight=1.0, connectivity=8)
+RiskAwareAStarPlanner(bn, risk_node, risk_state, risk_weight=1.0, connectivity=8)
 ```
 
 | Parameter | Type | Default | Description |
@@ -210,7 +210,7 @@ exists between the two points.
 
 ### `PathResult`
 
-Returned by `RiskStarPlanner.find_path()`.
+Returned by `RiskAwareAStarPlanner.find_path()`.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
@@ -278,9 +278,9 @@ Outputs `examples/tautra_route/output/auv_route_map.html`.
 
 ```
 risk-star/
-├── src/riskstar/
-│   ├── __init__.py        # public exports: RiskStarPlanner, PathResult
-│   ├── planner.py         # RiskStarPlanner + PathResult dataclass
+├── src/risk_aware_a_star/
+│   ├── __init__.py        # public exports: RiskAwareAStarPlanner, PathResult
+│   ├── planner.py         # RiskAwareAStarPlanner + PathResult dataclass
 │   ├── _astar.py          # pure-Python heapq A* implementation
 │   ├── _risk.py           # extract_risk_grid() helper
 │   └── _coords.py         # coordinate conversion utilities
@@ -298,5 +298,5 @@ risk-star/
 
 ```bash
 uv run pytest
-uv run pytest --cov=riskstar --cov-report=term-missing
+uv run pytest --cov=risk_aware_a_star --cov-report=term-missing
 ```

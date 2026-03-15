@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from riskstar._risk import extract_risk_grid
+from risk_aware_a_star._risk import extract_risk_grid
 
 
 # ---------------------------------------------------------------------------

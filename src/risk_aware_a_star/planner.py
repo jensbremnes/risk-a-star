@@ -1,4 +1,4 @@
-"""RiskStarPlanner — risk-aware A* path planner backed by a geobn Bayesian network."""
+"""RiskAwareAStarPlanner — risk-aware A* path planner backed by a geobn Bayesian network."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from ._risk import extract_risk_grid
 
 @dataclass
 class PathResult:
-    """Result of a :meth:`RiskStarPlanner.find_path` call.
+    """Result of a :meth:`RiskAwareAStarPlanner.find_path` call.
 
     Attributes
     ----------
@@ -40,7 +40,7 @@ class PathResult:
     inference_result: object
 
 
-class RiskStarPlanner:
+class RiskAwareAStarPlanner:
     """Risk-aware A* path planner.
 
     Parameters
