@@ -203,3 +203,44 @@ class TestCostCalculation:
         r_low = astar(grid_low, (0, 0), (0, 1), risk_weight=1.0)
         assert r_high is not None and r_low is not None
         assert r_high[1] > r_low[1]
+
+
+# ---------------------------------------------------------------------------
+# Closed-set and flat-index encoding
+# ---------------------------------------------------------------------------
+
+class TestClosedSetAndFlatEncoding:
+    def test_start_equals_goal_returns_single_node_zero_cost(self):
+        grid = _uniform(5, 5)
+        result = astar(grid, (2, 3), (2, 3))
+        assert result is not None
+        path, cost = result
+        assert path == [(2, 3)]
+        assert cost == 0.0
+
+    def test_path_continuity_large_grid(self):
+        """Every consecutive step in a large grid must be a valid neighbour."""
+        grid = _uniform(50, 50)
+        result = astar(grid, (0, 0), (49, 49), connectivity=8)
+        assert result is not None
+        path, _ = result
+        for (r1, c1), (r2, c2) in zip(path, path[1:]):
+            assert max(abs(r2 - r1), abs(c2 - c1)) == 1, (
+                f"Non-adjacent step ({r1},{c1}) → ({r2},{c2})"
+            )
+
+    def test_cost_matches_diagonal_path_zero_risk(self):
+        """(0,0) → (4,4) with zero risk over 8-connected grid: cost = 4×√2."""
+        grid = _uniform(5, 5)
+        result = astar(grid, (0, 0), (4, 4), risk_weight=0.0, connectivity=8)
+        assert result is not None
+        path, cost = result
+        assert len(path) == 5
+        assert math.isclose(cost, 4 * math.sqrt(2), rel_tol=1e-6)
+
+    def test_nan_barrier_still_blocks(self):
+        """Regression: NaN cells must remain impassable with numpy implementation."""
+        grid = _uniform(5, 5)
+        grid[:, 2] = float("nan")   # full vertical wall
+        result = astar(grid, (2, 0), (2, 4))
+        assert result is None

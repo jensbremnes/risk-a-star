@@ -76,6 +76,9 @@ class RiskAwareAStarPlanner:
         self._risk_weight = risk_weight
         self._connectivity = connectivity
         self._precomputed = bool(getattr(bn, '_inference_table', {}))
+        self._risk_grid: np.ndarray | None = None
+        self._infer_result: object = None
+        self._risk_stale: bool = True
 
     def load_precomputed(self, path: str | Path) -> None:
         """Restore a precomputed inference table from *path* (.npz).
@@ -130,8 +133,15 @@ class RiskAwareAStarPlanner:
             )
 
         # --- Bayesian network inference ---------------------------------
-        infer_result = self._bn.infer(query=[self._risk_node])
-        risk_grid = extract_risk_grid(infer_result, self._risk_node, self._risk_state)
+        if self._risk_stale:
+            self._infer_result = self._bn.infer(query=[self._risk_node])
+            self._risk_grid = extract_risk_grid(
+                self._infer_result, self._risk_node, self._risk_state
+            )
+            self._risk_stale = False
+
+        infer_result = self._infer_result
+        risk_grid = self._risk_grid
 
         # --- Coordinate conversion --------------------------------------
         transform = infer_result.transform
@@ -173,3 +183,21 @@ class RiskAwareAStarPlanner:
             risk_grid=risk_grid,
             inference_result=infer_result,
         )
+
+    def update_input(self, node: str, source: object) -> None:
+        """Update a dynamic BN input and mark the risk grid for recomputation.
+
+        Use instead of bn.set_input() directly so the planner's cached risk grid
+        is properly invalidated.
+        """
+        self._bn.set_input(node, source)
+        self._risk_stale = True
+
+    def freeze_static_nodes(self, *nodes: str) -> None:
+        """Cache discretized grids for static inputs (terrain, bathymetry).
+
+        Delegates to bn.freeze(*nodes). Call once at setup time.
+        Frozen nodes are not re-fetched or re-discretized on subsequent
+        find_path() calls.
+        """
+        self._bn.freeze(*nodes)

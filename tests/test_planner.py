@@ -151,6 +151,68 @@ def _make_fresh_bn(bif_path):
     return bn
 
 
+# ---------------------------------------------------------------------------
+# Risk-grid caching
+# ---------------------------------------------------------------------------
+
+class TestRiskGridCaching:
+    def test_risk_stale_true_on_construction(self, tiny_bn):
+        planner = _make_planner(tiny_bn)
+        assert planner._risk_stale is True
+
+    def test_cache_none_before_first_call(self, tiny_bn):
+        planner = _make_planner(tiny_bn)
+        assert planner._risk_grid is None
+        assert planner._infer_result is None
+
+    def test_first_call_populates_cache_and_clears_stale_flag(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
+        planner = _make_planner(tiny_bn)
+        planner.find_path(START_LATLON, GOAL_LATLON)
+        assert planner._risk_stale is False
+        assert planner._risk_grid is not None
+        assert planner._infer_result is not None
+
+    def test_second_call_reuses_same_risk_grid_object(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
+        planner = _make_planner(tiny_bn)
+        planner.find_path(START_LATLON, GOAL_LATLON)
+        grid_id = id(planner._risk_grid)
+        planner.find_path(START_LATLON, GOAL_LATLON)
+        assert id(planner._risk_grid) == grid_id
+
+    def test_update_input_sets_stale_flag(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
+        planner = _make_planner(tiny_bn)
+        planner.find_path(START_LATLON, GOAL_LATLON)
+        assert planner._risk_stale is False
+        new_src = geobn.ArraySource(
+            np.full((5, 5), 10.0, dtype=np.float32), crs=GRID_CRS, transform=GRID_TRANSFORM
+        )
+        planner.update_input("slope", new_src)
+        assert planner._risk_stale is True
+
+    def test_update_input_triggers_reinference(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
+        planner = _make_planner(tiny_bn)
+        planner.find_path(START_LATLON, GOAL_LATLON)
+        old_id = id(planner._risk_grid)
+        new_src = geobn.ArraySource(
+            np.full((5, 5), 10.0, dtype=np.float32), crs=GRID_CRS, transform=GRID_TRANSFORM
+        )
+        planner.update_input("slope", new_src)
+        planner.find_path(START_LATLON, GOAL_LATLON)
+        assert id(planner._risk_grid) != old_id
+
+    def test_freeze_static_nodes_delegates_to_bn(self, tiny_bn, monkeypatch):
+        tiny_bn.precompute(["risk"])
+        planner = _make_planner(tiny_bn)
+        calls = []
+        monkeypatch.setattr(tiny_bn, "freeze", lambda *nodes: calls.append(nodes))
+        planner.freeze_static_nodes("slope")
+        assert calls == [("slope",)]
+
+
 class TestPrecomputedPersistence:
     def test_save_creates_file(self, tiny_bn, tmp_path):
         tiny_bn.precompute(["risk"])

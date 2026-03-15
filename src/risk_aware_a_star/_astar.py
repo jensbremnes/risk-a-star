@@ -1,4 +1,4 @@
-"""Pure-Python A* path planner over a 2-D risk grid."""
+"""Numpy-based A* path planner over a 2-D risk grid."""
 
 from __future__ import annotations
 
@@ -44,50 +44,69 @@ def astar(
     rows, cols = risk_grid.shape
     neighbors = _CARDINAL if connectivity == 4 else _CARDINAL + _DIAGONAL
 
-    def _heuristic(r: int, c: int) -> float:
-        return math.sqrt((r - goal[0]) ** 2 + (c - goal[1]) ** 2)
+    gr, gc = goal
+    sr, sc = start
 
     def _passable(r: int, c: int) -> bool:
         return 0 <= r < rows and 0 <= c < cols and not math.isnan(risk_grid[r, c])
 
-    if not _passable(*start) or not _passable(*goal):
+    if not _passable(sr, sc) or not _passable(gr, gc):
         return None
 
-    g_score: dict[tuple[int, int], float] = {start: 0.0}
-    came_from: dict[tuple[int, int], tuple[int, int] | None] = {start: None}
-    heap: list[tuple[float, tuple[int, int]]] = []
-    heapq.heappush(heap, (_heuristic(*start), start))
+    # Early return when start == goal
+    if start == goal:
+        return [start], 0.0
+
+    # Pre-allocate numpy arrays — flat-index encoded
+    g_score = np.full((rows, cols), np.inf, dtype=np.float64)
+    came_from = np.full((rows, cols), -1, dtype=np.int32)
+    closed = np.zeros((rows, cols), dtype=bool)
+
+    g_score[sr, sc] = 0.0
+    # Sentinel: start has no predecessor
+    came_from[sr, sc] = -2
+
+    goal_flat = gr * cols + gc
+    h_start = math.sqrt((sr - gr) ** 2 + (sc - gc) ** 2)
+    heap: list[tuple[float, int]] = []
+    heapq.heappush(heap, (h_start, sr * cols + sc))
     expanded = 0
 
     while heap:
         if expanded >= max_nodes:
             return None
-        _, current = heapq.heappop(heap)
+        _, flat = heapq.heappop(heap)
+        r0, c0 = flat // cols, flat % cols
 
-        if current == goal:
+        if closed[r0, c0]:
+            continue
+        closed[r0, c0] = True
+
+        if flat == goal_flat:
+            # Reconstruct path by walking came_from back to sentinel -2
             path: list[tuple[int, int]] = []
-            node: tuple[int, int] | None = current
-            while node is not None:
-                path.append(node)
-                node = came_from[node]
+            cur = flat
+            while cur != -2:
+                r, c = cur // cols, cur % cols
+                path.append((r, c))
+                cur = int(came_from[r, c])
             path.reverse()
-            return path, g_score[goal]
+            return path, float(g_score[gr, gc])
 
         expanded += 1
-        r0, c0 = current
 
         for dr, dc in neighbors:
             nr, nc = r0 + dr, c0 + dc
-            if not _passable(nr, nc):
+            if not _passable(nr, nc) or closed[nr, nc]:
                 continue
             dist_px = _SQRT2 if (dr != 0 and dc != 0) else 1.0
             step_cost = dist_px * (1.0 + risk_weight * float(risk_grid[nr, nc]))
-            tentative_g = g_score[current] + step_cost
+            tentative_g = g_score[r0, c0] + step_cost
 
-            if tentative_g < g_score.get((nr, nc), math.inf):
-                g_score[(nr, nc)] = tentative_g
-                came_from[(nr, nc)] = current
-                f = tentative_g + _heuristic(nr, nc)
-                heapq.heappush(heap, (f, (nr, nc)))
+            if tentative_g < g_score[nr, nc]:
+                g_score[nr, nc] = tentative_g
+                came_from[nr, nc] = flat
+                f = tentative_g + math.sqrt((nr - gr) ** 2 + (nc - gc) ** 2)
+                heapq.heappush(heap, (f, nr * cols + nc))
 
     return None
