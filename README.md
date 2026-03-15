@@ -1,6 +1,6 @@
 # riskstar
 
-**Risk-aware A\* path planning over Bayesian-network risk fields**
+**Risk-informed A\* path planning using Bayesian network risk models**
 
 ![Python ≥3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)
 ![uv](https://img.shields.io/badge/managed%20with-uv-purple)
@@ -9,8 +9,8 @@
 
 ## Overview
 
-`riskstar` solves the problem of routing through terrain or environments where risk
-is spatially variable and probabilistically modelled. Traditional shortest-path
+`riskstar` solves the problem of path planning through terrain or environments where risk
+is spatially variable modeled through Bayesian networks. Traditional shortest-path
 algorithms minimise distance; `riskstar` minimises a combined objective that trades
 distance against risk, producing routes that are longer when necessary to avoid
 high-probability hazard zones.
@@ -18,8 +18,7 @@ high-probability hazard zones.
 The library pairs a [`geobn`](https://github.com/your-org/geobn) Bayesian network
 with an A\* planner. `geobn` ingests raster inputs (GeoTIFFs, NumPy arrays, or
 scalar constants), runs discrete Bayesian inference over a 2-D spatial grid, and
-produces a per-pixel marginal probability for any node in the network — for example,
-the probability that a grid cell is in the "high" avalanche-risk state. `riskstar`
+produces a per-pixel marginal probability for any node in the network, for example, collision probability. `riskstar`
 extracts that marginal as a risk grid and feeds it into A\* with a risk-weighted step
 cost, returning an ordered list of waypoints together with summary statistics.
 
@@ -78,49 +77,84 @@ pip install riskstar
 
 ---
 
-## Quick start
+## Quick start — AUV mission planning
 
-The snippet below uses `ArraySource` so it requires no external data files.
+The example below uses `ArraySource` so it runs without any external data files.
+Swap the synthetic arrays for your own GeoTIFFs via `geobn.RasterSource` and
+replace the placeholder coordinates with your survey start/end points.
 
 ```python
-from pathlib import Path
 import numpy as np
 from affine import Affine
 import geobn
 from riskstar import RiskStarPlanner
 
-# 1. Build a tiny synthetic DEM and attach it to a BN
-rng = np.random.default_rng(42)
-slope_arr = rng.uniform(0, 60, size=(100, 100)).astype(np.float32)
-transform = Affine(100.0, 0, 693_000, 0, -100.0, 7_746_000)
+# ── 1. Synthetic seafloor rasters (200 × 200 grid, 10 m resolution) ───────────
+rng  = np.random.default_rng(0)
+ROWS, COLS = 200, 200
+RES        = 10.0                                   # metres per pixel
+TRANSFORM  = Affine(RES, 0.0, 500_000.0, 0.0, -RES, 6_800_000.0)
+CRS        = "EPSG:32632"                           # UTM zone 32N — adapt to your survey area
 
-bn = geobn.load("avalanche_risk.bif")
-bn.set_input("slope", geobn.ArraySource(slope_arr, crs="EPSG:32633", transform=transform))
-bn.set_input("weather_index", geobn.ConstantSource(1.5))
-bn.set_discretization("slope", [0, 15, 35, 90], labels=["flat", "moderate", "steep"])
-bn.set_discretization("weather_index", [0.0, 1.0, 3.0], labels=["low", "high"])
+slope      = rng.uniform(0,     20,    (ROWS, COLS)).astype("float32")
+ruggedness = rng.uniform(0,     0.015, (ROWS, COLS)).astype("float32")
+current    = rng.uniform(0,     0.20,  (ROWS, COLS)).astype("float32")
 
-# 2. Create the planner and precompute
+# Inject a high-risk obstacle band so the planner has something to route around
+slope[80:120, 60:140]   = 25.0
+current[80:120, 60:140] = 0.25
+
+# ── 2. Bayesian network ───────────────────────────────────────────────────────
+bn = geobn.load("auv_mission.bif")                 # your AUV risk BN
+
+bn.set_input("Slope",             geobn.ArraySource(slope,      CRS, TRANSFORM))
+bn.set_input("Ruggedness",        geobn.ArraySource(ruggedness, CRS, TRANSFORM))
+bn.set_input("Current",           geobn.ArraySource(current,    CRS, TRANSFORM))
+bn.set_input("Altitude_setpoint", geobn.ConstantSource(5.0))    # 5 m cruise altitude
+
+bn.set_discretization("Slope",             [0,     10,    15,    90],  ["Low", "Medium", "High"])
+bn.set_discretization("Ruggedness",        [0,     0.005, 0.01,  1.0], ["Low", "Medium", "High"])
+bn.set_discretization("Current",           [0,     0.08,  0.15,  2.0], ["Low", "Medium", "High"])
+bn.set_discretization("Altitude_setpoint", [0,     5,     20,  200],   ["Close", "Moderate", "Far"])
+
+# ── 3. Planner ────────────────────────────────────────────────────────────────
 planner = RiskStarPlanner(
     bn=bn,
-    risk_node="avalanche_risk",
-    risk_state={"moderate": 0.5, "high": 1.0},  # weighted multi-state risk
+    risk_node="auv_risk",
+    risk_state={"Medium": 0.5, "High": 1.0},       # weighted multi-state cost
     risk_weight=5.0,
     connectivity=8,
 )
 planner.precompute()
 
-# 3. Find a risk-optimal path (WGS84 lat/lon in, WGS84 lat/lon out)
-result = planner.find_path(
-    start=(69.680, 20.060),
-    goal=(69.725, 20.120),
-    return_coords="latlon",
-)
-print(f"{len(result.waypoints)} waypoints, cost={result.total_cost:.2f}")
+# ── 4. Plan a mission route ───────────────────────────────────────────────────
+START = (61.300, 5.050)   # (lat, lon) WGS84 — replace with your start point
+GOAL  = (61.318, 5.085)   # (lat, lon) WGS84 — replace with your goal point
 
-# 4. Export an interactive HTML risk map
-result.inference_result.show_map(output_dir=".", filename="risk_map.html")
+result = planner.find_path(START, GOAL, return_coords="latlon")
+print(f"{len(result.waypoints)} waypoints  "
+      f"distance={result.total_distance_px:.0f} px  "
+      f"cost={result.total_cost:.2f}")
+
+# ── 5. Export interactive risk map ────────────────────────────────────────────
+result.inference_result.show_map(
+    output_dir=".",
+    filename="auv_mission_map.html",
+    show_probability_bands=True,
+    show_category=True,
+)
 ```
+
+**Using real GeoTIFFs** — replace the `ArraySource` calls with `RasterSource`:
+
+```python
+bn.set_input("Slope",    geobn.RasterSource("slope.tif"))
+bn.set_input("Current",  geobn.RasterSource("current.tif"))
+# etc.
+```
+
+The planner reprojects and resamples automatically; all inputs must overlap
+spatially but need not share the same resolution or CRS.
 
 ---
 
