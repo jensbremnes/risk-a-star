@@ -17,8 +17,8 @@ resulting risk grid for the optimal path.
 
 | BN | Nodes | Grid | State combos | Precompute | Risk map (median) | A* path (median) |
 |----|-------|------|-------------|-----------|------------------|------------------|
-| slope → risk | 2 | 400 × 400 | 2 | 1 ms | 1.5 ms | 685 ms |
-| AUV (8-node) | 8 | 400 × 400 | 243 | 26 ms | 6 ms | 784 ms |
+| slope → risk | 2 | 400 × 400 | 2 | 1 ms | 1.6 ms | 397 ms |
+| AUV (8-node) | 8 | 400 × 400 | 243 | 27 ms | 6 ms | 454 ms |
 
 > Benchmarked with `tests/test_benchmark.py` on a MacBook Air 2025 (M4, 16 GB).
 
