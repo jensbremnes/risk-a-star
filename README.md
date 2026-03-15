@@ -1,19 +1,24 @@
 # risk-aware-a-star
 
-**Risk-informed A\* path planning using Bayesian network risk models**
+[![Tests](https://github.com/jensbremnes/risk-aware-a-star/actions/workflows/tests.yml/badge.svg)](https://github.com/jensbremnes/risk-aware-a-star/actions/workflows/tests.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-![Python ≥3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)
-![uv](https://img.shields.io/badge/managed%20with-uv-purple)
+Risk-optimal path planning with Bayesian network risk models. In milliseconds.
 
----
+![demo](docs/assets/demo.gif)
 
-## Real-time Bayesian-network risk planning
+`risk-aware-a-star` delivers real-time, risk-optimal path planning even when the
+risk model is a full Bayesian network. It pairs with
+[`geobn`](https://github.com/jensbremnes/geobn) to wire raster inputs directly into
+a probabilistic risk model: `precompute()` solves all evidence-state combinations
+once offline; at runtime, inference reduces to pure numpy indexing — no pgmpy on the
+robot, no compromise on planning speed. Risk grid caching makes replanning as cheap
+as running A\* alone.
 
-`risk-aware-a-star` runs full Bayesian-network inference across a spatial grid and plans a
-risk-optimal route — **all in milliseconds**. Timing breaks into three phases: `precompute()`
-executes all evidence-state combinations once and caches the inference table; the **risk map**
-phase applies the cached table to the full grid (zero pgmpy calls); and **A\*** searches the
-resulting risk grid for the optimal path.
+Use it for USV and AUV mission planning · avalanche-risk ski touring ·
+search-and-rescue routing · any domain where spatial risk can be modelled
+probabilistically.
 
 | BN | Nodes | Grid | State combos | Precompute | Risk map (median) | A* path (median) |
 |----|-------|------|-------------|-----------|------------------|------------------|
@@ -24,26 +29,17 @@ resulting risk grid for the optimal path.
 
 ---
 
-## Overview
+## Install
 
-`risk-aware-a-star` solves the problem of path planning through terrain or environments where risk
-is spatially variable modeled through Bayesian networks. Traditional shortest-path
-algorithms minimise distance; `risk-aware-a-star` minimises a combined objective that trades
-distance against risk, producing routes that are longer when necessary to avoid
-high-probability hazard zones.
+```bash
+# Using uv (recommended)
+uv add risk-aware-a-star
 
-The library pairs a [`geobn`](https://github.com/your-org/geobn) Bayesian network
-with an A\* planner. `geobn` ingests raster inputs (GeoTIFFs, NumPy arrays, or
-scalar constants), runs discrete Bayesian inference over a 2-D spatial grid, and
-produces a per-pixel marginal probability for any node in the network, for example, collision probability. `risk-aware-a-star`
-extracts that marginal as a risk grid and feeds it into A\* with a risk-weighted step
-cost, returning an ordered list of waypoints together with summary statistics.
+# Or with pip
+pip install risk-aware-a-star
+```
 
-Typical use cases include AUV mission planning over seafloor hazard maps, mountaineering
-and search-and-rescue route optimisation over avalanche or terrain-difficulty models,
-and any domain where a spatial risk raster can be derived from a probabilistic model.
-The public API is deliberately minimal: construct a `RiskAwareAStarPlanner`, call
-`bn.precompute([risk_node])` offline (or `load_precomputed()` at runtime), then call `find_path()` for each query.
+**Requirements:** Python ≥ 3.11, `geobn>=0.1`, `numpy`, `pyproj`, `affine`.
 
 ---
 
@@ -76,24 +72,8 @@ step_cost = dist_px × (1 + risk_weight × risk[r, c])
 
 `dist_px` is 1.0 for cardinal steps and √2 for diagonal steps (8-connectivity).
 `risk[r, c]` is the marginal probability (or weighted combination of state
-probabilities) at that cell, in [0, 1].
-
-Grid cells where inference returns `NaN` (outside the data extent, masked water,
-etc.) are treated as impassable barriers — A\* will never route through them.
-
----
-
-## Installation
-
-```bash
-# Using uv (recommended)
-uv add risk-aware-a-star
-
-# Or with pip
-pip install risk-aware-a-star
-```
-
-**Requirements:** Python ≥ 3.11, `geobn>=0.1`, `numpy`, `pyproj`, `affine`.
+probabilities) at that cell, in [0, 1]. Cells where inference returns `NaN` are
+impassable — A\* will never route through them.
 
 ---
 
@@ -185,7 +165,7 @@ route_2 = planner.find_path(START, GOAL)
 
 ---
 
-## API Reference
+## API reference
 
 ### `RiskAwareAStarPlanner`
 
@@ -248,85 +228,31 @@ Returned by `RiskAwareAStarPlanner.find_path()`.
 
 ---
 
-## Cost model
+## Example
 
-Each grid step from cell `(r, c)` to a neighbour costs:
-
-```
-step_cost = dist_px × (1 + risk_weight × risk[r, c])
-```
-
-where `dist_px` is 1.0 for cardinal steps and √2 for diagonal steps.
-
-With `risk_weight=0` the planner reduces to the shortest Euclidean path.
-Increasing `risk_weight` pushes routes progressively further around risky terrain
-at the cost of additional travel distance. A value of 5–10 is a reasonable starting
-point for most applications.
-
----
-
-## Impassable cells
-
-Grid cells where the BN inference returns `NaN` are treated as impassable. This
-covers pixels that fall outside the extent of any input raster, masked ocean cells,
-no-data regions, etc. A\* will never include them in a route. If `start` or `goal`
-maps to a NaN cell, `find_path()` raises a `ValueError` before the search begins.
-
----
-
-## Examples
-
-### Lyngen Alps — avalanche-risk ski touring
+### USV collision risk — coastal passage planning
 
 ```bash
-uv run examples/lyngen_alps_route/run_example.py
+uv run python docs/usv_collision_risk/run_example.py
 ```
 
-Synthetic 100×100 grid at 100 m resolution (EPSG:32633) over the Lyngen Alps,
-Norway. Two-node BN: `slope` + `weather_index` → `avalanche_risk`. Demonstrates
-multi-state weighted risk and a 5-km NW→SE route through variable terrain.
-Outputs `lyngen_risk_map.html` in the current directory.
-
-### Tautra — AUV seafloor route
-
-Real GeoTIFF rasters at ~10 m resolution (374×358 grid) over the Tautra reef,
-Trondheim Fjord. Eight-node BN with two intermediate nodes. Plans a NW→SE
-risk-optimal AUV route across the reef, avoiding shallow and high-current zones.
-Demonstrates the offline / runtime two-phase pattern.
-
-```bash
-# Step 1 — offline: build and save the inference table
-uv run examples/tautra_route/precompute_offline.py   # creates tautra_table.npz
-
-# Step 2 — runtime: load table and plan the route
-uv run examples/tautra_route/run_auv_route.py        # opens auv_route_map.html
-```
+Synthetic 80×80 grid. Two-node BN: `vessel_traffic` + `sea_state` → `collision_risk`.
+Demonstrates the offline/runtime two-phase pattern and risk-aware route deviation
+around high-traffic shipping lanes.
 
 ---
 
-## Project layout
+## Academic foundation
 
-```
-risk-star/
-├── src/risk_aware_a_star/
-│   ├── __init__.py        # public exports: RiskAwareAStarPlanner, PathResult
-│   ├── planner.py         # RiskAwareAStarPlanner + PathResult dataclass
-│   ├── _astar.py          # Numba-JIT A* implementation
-│   ├── _risk.py           # extract_risk_grid() helper
-│   └── _coords.py         # coordinate conversion utilities
-├── examples/
-│   ├── lyngen_alps_route/ # avalanche-risk mountain routing
-│   ├── tautra/            # AUV risk assessment (no path planning)
-│   └── tautra_route/      # AUV risk-optimal route planning
-├── tests/                 # 62 tests, ~99 % coverage
-└── pyproject.toml
-```
+The step-cost formulation and Bayesian network integration follow the approach
+described in:
+
+> Bremnes, J., et al. (2024). *Risk-aware path planning for autonomous marine
+> vehicles using Bayesian networks*. (manuscript in preparation)
 
 ---
 
-## Running tests
+## Declaration of AI use
 
-```bash
-uv run pytest
-uv run pytest --cov=risk_aware_a_star --cov-report=term-missing
-```
+This library was written with the assistance of Claude (Anthropic). All concepts,
+design decisions, and research ideas originate with the author.
