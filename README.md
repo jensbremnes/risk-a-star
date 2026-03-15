@@ -10,13 +10,15 @@
 ## Real-time Bayesian-network risk planning
 
 `risk-aware-a-star` runs full Bayesian-network inference across a spatial grid and plans a
-risk-optimal route — **all in milliseconds**. The `precompute()` step executes all
-evidence-state combinations once and caches the inference table; every subsequent
-`find_path()` query costs only a single grid traversal with no re-inference.
+risk-optimal route — **all in milliseconds**. Timing breaks into three phases: `precompute()`
+executes all evidence-state combinations once and caches the inference table; the **risk map**
+phase applies the cached table to the full grid (zero pgmpy calls); and **A\*** searches the
+resulting risk grid for the optimal path.
 
-| Grid | Precompute | find_path() (median) | Platform |
-|------|-----------|----------------------|----------|
-| 400 × 400 px (2-node BN) | < 1 ms | 690 ms | Apple M4, 16 GB RAM |
+| BN | Nodes | Grid | State combos | Precompute | Risk map (median) | A* path (median) |
+|----|-------|------|-------------|-----------|------------------|------------------|
+| slope → risk | 2 | 400 × 400 | 2 | 1 ms | 1.5 ms | 685 ms |
+| AUV (8-node) | 8 | 400 × 400 | 243 | 26 ms | 6 ms | 784 ms |
 
 > Benchmarked with `tests/test_benchmark.py` on a MacBook Air 2025 (M4, 16 GB).
 
