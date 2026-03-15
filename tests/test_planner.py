@@ -5,8 +5,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+import geobn
 from risk_aware_a_star import PathResult, RiskAwareAStarPlanner
-from conftest import GOAL_LATLON, START_LATLON
+from conftest import GOAL_LATLON, GRID_CRS, GRID_TRANSFORM, START_LATLON
 
 
 # ---------------------------------------------------------------------------
@@ -33,8 +34,8 @@ class TestPrecomputeGuard:
             planner.find_path(START_LATLON, GOAL_LATLON)
 
     def test_precompute_then_find_path_ok(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         result = planner.find_path(START_LATLON, GOAL_LATLON)
         assert isinstance(result, PathResult)
 
@@ -45,54 +46,54 @@ class TestPrecomputeGuard:
 
 class TestFindPath:
     def test_returns_path_result(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         result = planner.find_path(START_LATLON, GOAL_LATLON)
         assert isinstance(result, PathResult)
 
     def test_waypoints_non_empty(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         result = planner.find_path(START_LATLON, GOAL_LATLON)
         assert len(result.waypoints) >= 2
 
     def test_first_waypoint_near_start(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         result = planner.find_path(START_LATLON, GOAL_LATLON)
         lat, lon = result.waypoints[0]
         assert abs(lat - START_LATLON[0]) < 0.01
         assert abs(lon - START_LATLON[1]) < 0.01
 
     def test_last_waypoint_near_goal(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         result = planner.find_path(START_LATLON, GOAL_LATLON)
         lat, lon = result.waypoints[-1]
         assert abs(lat - GOAL_LATLON[0]) < 0.01
         assert abs(lon - GOAL_LATLON[1]) < 0.01
 
     def test_total_cost_positive(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         result = planner.find_path(START_LATLON, GOAL_LATLON)
         assert result.total_cost > 0.0
 
     def test_total_distance_px_positive(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         result = planner.find_path(START_LATLON, GOAL_LATLON)
         assert result.total_distance_px > 0.0
 
     def test_risk_grid_shape(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         result = planner.find_path(START_LATLON, GOAL_LATLON)
         assert result.risk_grid.shape == (5, 5)
 
     def test_inference_result_attached(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         result = planner.find_path(START_LATLON, GOAL_LATLON)
         assert result.inference_result is not None
 
@@ -104,14 +105,14 @@ class TestFindPath:
 class TestReturnCoords:
     @pytest.mark.parametrize("mode", ["latlon", "crs", "pixel"])
     def test_valid_return_coords(self, tiny_bn, mode):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         result = planner.find_path(START_LATLON, GOAL_LATLON, return_coords=mode)
         assert len(result.waypoints) > 0
 
     def test_pixel_mode_returns_int_tuples(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         result = planner.find_path(START_LATLON, GOAL_LATLON, return_coords="pixel")
         for wp in result.waypoints:
             assert len(wp) == 2
@@ -123,15 +124,15 @@ class TestReturnCoords:
 
 class TestOutOfBounds:
     def test_start_outside_grid_raises(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         far_away = (0.0, 0.0)   # Equator / prime meridian — outside UTM 32N grid
         with pytest.raises(ValueError, match="start"):
             planner.find_path(far_away, GOAL_LATLON)
 
     def test_goal_outside_grid_raises(self, tiny_bn):
+        tiny_bn.precompute(["risk"])
         planner = _make_planner(tiny_bn)
-        planner.precompute()
         far_away = (0.0, 0.0)
         with pytest.raises(ValueError, match="goal"):
             planner.find_path(START_LATLON, far_away)
@@ -141,35 +142,36 @@ class TestOutOfBounds:
 # Precomputed persistence
 # ---------------------------------------------------------------------------
 
-class TestPrecomputedPersistence:
-    def test_save_requires_precompute(self, tiny_bn, tmp_path):
-        planner = _make_planner(tiny_bn)
-        with pytest.raises(RuntimeError):
-            planner.save_precomputed(tmp_path / "table.npz")
+def _make_fresh_bn(bif_path):
+    """Create a fully-configured but not-yet-precomputed BN."""
+    bn = geobn.load(bif_path)
+    slope_data = np.full((5, 5), 5.0, dtype=np.float32)
+    bn.set_input("slope", geobn.ArraySource(slope_data, crs=GRID_CRS, transform=GRID_TRANSFORM))
+    bn.set_discretization("slope", [0, 20, 90], labels=["low", "high"])
+    return bn
 
+
+class TestPrecomputedPersistence:
     def test_save_creates_file(self, tiny_bn, tmp_path):
-        planner = _make_planner(tiny_bn)
-        planner.precompute()
+        tiny_bn.precompute(["risk"])
         out = tmp_path / "table.npz"
-        planner.save_precomputed(out)
+        tiny_bn.save_precomputed(out)
         assert out.exists()
 
-    def test_load_marks_ready(self, tiny_bn, tmp_path):
-        planner = _make_planner(tiny_bn)
-        planner.precompute()
+    def test_load_marks_ready(self, tiny_bn, bif_path, tmp_path):
+        tiny_bn.precompute(["risk"])
         path = tmp_path / "table.npz"
-        planner.save_precomputed(path)
-        fresh = _make_planner(tiny_bn)
+        tiny_bn.save_precomputed(path)
+        fresh = _make_planner(_make_fresh_bn(bif_path))
         assert not fresh._precomputed
         fresh.load_precomputed(path)
         assert fresh._precomputed
 
-    def test_load_then_find_path(self, tiny_bn, tmp_path):
-        planner = _make_planner(tiny_bn)
-        planner.precompute()
+    def test_load_then_find_path(self, tiny_bn, bif_path, tmp_path):
+        tiny_bn.precompute(["risk"])
         path = tmp_path / "table.npz"
-        planner.save_precomputed(path)
-        fresh = _make_planner(tiny_bn)
+        tiny_bn.save_precomputed(path)
+        fresh = _make_planner(_make_fresh_bn(bif_path))
         fresh.load_precomputed(path)
         result = fresh.find_path(START_LATLON, GOAL_LATLON)
         assert len(result.waypoints) >= 2

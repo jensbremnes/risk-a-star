@@ -43,7 +43,7 @@ Typical use cases include AUV mission planning over seafloor hazard maps, mounta
 and search-and-rescue route optimisation over avalanche or terrain-difficulty models,
 and any domain where a spatial risk raster can be derived from a probabilistic model.
 The public API is deliberately minimal: construct a `RiskAwareAStarPlanner`, call
-`precompute()` once offline (or `load_precomputed()` at runtime), then call `find_path()` for each query.
+`bn.precompute([risk_node])` offline (or `load_precomputed()` at runtime), then call `find_path()` for each query.
 
 ---
 
@@ -54,7 +54,7 @@ OFFLINE (workstation)
 ───────────────────────────────────────────────────────────────────
 Raster inputs  →  geobn BayesianNetwork
                         │
-                   precompute()  →  save_precomputed("table.npz")
+               bn.precompute([risk_node])  →  bn.save_precomputed("table.npz")
 
 RUNTIME (robot)
 ───────────────────────────────────────────────────────────────────
@@ -99,56 +99,25 @@ pip install risk-aware-a-star
 
 ## Quick start — AUV mission planning
 
-The example below uses `ArraySource` so it runs without any external data files.
-Swap the synthetic arrays for your own GeoTIFFs via `geobn.RasterSource` and
-replace the placeholder coordinates with your survey start/end points.
-
 **OFFLINE** — run once on a workstation to build the inference table:
 
 ```python
-import numpy as np
-from affine import Affine
 import geobn
-from risk_aware_a_star import RiskAwareAStarPlanner
 
-# ── 1. Synthetic seafloor rasters (200 × 200 grid, 10 m resolution) ───────────
-rng  = np.random.default_rng(0)
-ROWS, COLS = 200, 200
-RES        = 10.0                                   # metres per pixel
-TRANSFORM  = Affine(RES, 0.0, 500_000.0, 0.0, -RES, 6_800_000.0)
-CRS        = "EPSG:32632"                           # UTM zone 32N — adapt to your survey area
+bn = geobn.load("auv_mission.bif")
 
-slope      = rng.uniform(0,     20,    (ROWS, COLS)).astype("float32")
-ruggedness = rng.uniform(0,     0.015, (ROWS, COLS)).astype("float32")
-current    = rng.uniform(0,     0.20,  (ROWS, COLS)).astype("float32")
-
-# Inject a high-risk obstacle band so the planner has something to route around
-slope[80:120, 60:140]   = 25.0
-current[80:120, 60:140] = 0.25
-
-# ── 2. Bayesian network ───────────────────────────────────────────────────────
-bn = geobn.load("auv_mission.bif")                 # your AUV risk BN
-
-bn.set_input("Slope",             geobn.ArraySource(slope,      CRS, TRANSFORM))
-bn.set_input("Ruggedness",        geobn.ArraySource(ruggedness, CRS, TRANSFORM))
-bn.set_input("Current",           geobn.ArraySource(current,    CRS, TRANSFORM))
-bn.set_input("Altitude_setpoint", geobn.ConstantSource(5.0))    # 5 m cruise altitude
+bn.set_input("Slope",             geobn.RasterSource("slope.tif"))
+bn.set_input("Ruggedness",        geobn.RasterSource("ruggedness.tif"))
+bn.set_input("Current",           geobn.RasterSource("current.tif"))
+bn.set_input("Altitude_setpoint", geobn.ConstantSource(5.0))
 
 bn.set_discretization("Slope",             [0,     10,    15,    90],  ["Low", "Medium", "High"])
 bn.set_discretization("Ruggedness",        [0,     0.005, 0.01,  1.0], ["Low", "Medium", "High"])
 bn.set_discretization("Current",           [0,     0.08,  0.15,  2.0], ["Low", "Medium", "High"])
 bn.set_discretization("Altitude_setpoint", [0,     5,     20,  200],   ["Close", "Moderate", "Far"])
 
-# ── 3. Planner ────────────────────────────────────────────────────────────────
-planner = RiskAwareAStarPlanner(
-    bn=bn,
-    risk_node="auv_risk",
-    risk_state={"Medium": 0.5, "High": 1.0},       # weighted multi-state cost
-    risk_weight=5.0,
-    connectivity=8,
-)
-planner.precompute()
-planner.save_precomputed("table.npz")              # persist for the robot
+bn.precompute(["auv_risk"])
+bn.save_precomputed("table.npz")
 ```
 
 **RUNTIME** — load the cached table on the robot (no pgmpy calls):
@@ -177,7 +146,7 @@ planner = RiskAwareAStarPlanner(
     risk_weight=5.0,
     connectivity=8,
 )
-planner.load_precomputed("table.npz")              # replaces precompute()
+planner.load_precomputed("table.npz")
 
 # ── Plan a mission route ──────────────────────────────────────────────────────
 START = (61.300, 5.050)   # (lat, lon) WGS84 — replace with your start point
@@ -187,14 +156,6 @@ result = planner.find_path(START, GOAL, return_coords="latlon")
 print(f"{len(result.waypoints)} waypoints  "
       f"distance={result.total_distance_px:.0f} px  "
       f"cost={result.total_cost:.2f}")
-```
-
-**Using real GeoTIFFs** — replace the `ArraySource` calls with `RasterSource`:
-
-```python
-bn.set_input("Slope",    geobn.RasterSource("slope.tif"))
-bn.set_input("Current",  geobn.RasterSource("current.tif"))
-# etc.
 ```
 
 The planner reprojects and resamples automatically; all inputs must overlap
@@ -219,21 +180,6 @@ RiskAwareAStarPlanner(bn, risk_node, risk_state, risk_weight=1.0, connectivity=8
 | `connectivity` | `int` | `8` | `4` (cardinal only) or `8` (cardinal + diagonal) |
 
 #### Methods
-
-**`precompute() → None`**
-
-Pre-runs all evidence-state combinations and caches the inference table.
-Must be called once before `find_path()`. Subsequent `find_path()` calls use
-the cached table for fast O(H×W) inference.
-
----
-
-**`save_precomputed(path) → None`**
-
-Serialise the cached inference table to a `.npz` file (offline step). Call after
-`precompute()` to persist the table for later use on resource-constrained systems.
-
----
 
 **`load_precomputed(path) → None`**
 
@@ -262,9 +208,7 @@ Plans a risk-aware path from `start` to `goal`.
 | `"crs"` | `(x, y)` float tuples | Native CRS of the raster |
 | `"pixel"` | `(row, col)` int tuples | Grid pixel indices |
 
-Raises `RuntimeError` if neither `precompute()` nor `load_precomputed()` has been
-called, `ValueError` if `start` or `goal` is outside the grid bounds, and
-`RuntimeError` if no path exists between the two points.
+Raises `RuntimeError` if `load_precomputed()` (or `bn.precompute()` before construction) has not been called, `ValueError` if `start` or `goal` is outside the grid bounds, and `RuntimeError` if no path exists between the two points.
 
 ---
 

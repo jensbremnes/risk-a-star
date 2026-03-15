@@ -58,8 +58,8 @@ class RiskAwareAStarPlanner:
     connectivity:
         ``4`` (cardinal) or ``8`` (cardinal + diagonal, default).
 
-    After construction, call :meth:`precompute` (offline) or
-    :meth:`load_precomputed` (runtime) before :meth:`find_path`.
+    After construction, call ``bn.precompute([risk_node])`` offline, then
+    :meth:`load_precomputed` at runtime before :meth:`find_path`.
     """
 
     def __init__(
@@ -75,30 +75,7 @@ class RiskAwareAStarPlanner:
         self._risk_state = risk_state
         self._risk_weight = risk_weight
         self._connectivity = connectivity
-        self._precomputed = False
-
-    # ------------------------------------------------------------------
-    def precompute(self) -> None:
-        """Pre-run all evidence-state combinations and cache the inference table.
-
-        Must be called before :meth:`find_path`.  Subsequent :meth:`find_path`
-        calls will use the cached table for fast O(H×W) inference.
-        """
-        self._bn.precompute(query=[self._risk_node])
-        self._precomputed = True
-
-    def save_precomputed(self, path: str | Path) -> None:
-        """Serialise the cached inference table to *path* (.npz).
-
-        Call after :meth:`precompute` to persist the table for later use on
-        resource-constrained systems (e.g. a robot).
-
-        Raises
-        ------
-        RuntimeError
-            If :meth:`precompute` has not been called (raised by geobn).
-        """
-        self._bn.save_precomputed(path)
+        self._precomputed = bool(getattr(bn, '_inference_table', {}))
 
     def load_precomputed(self, path: str | Path) -> None:
         """Restore a precomputed inference table from *path* (.npz).
@@ -140,7 +117,7 @@ class RiskAwareAStarPlanner:
         Raises
         ------
         RuntimeError
-            If neither :meth:`precompute` nor :meth:`load_precomputed` has been called.
+            If :meth:`load_precomputed` (or ``bn.precompute()`` before construction) has not been called.
         ValueError
             If *start* or *goal* is outside the grid bounds.
         RuntimeError
@@ -148,7 +125,8 @@ class RiskAwareAStarPlanner:
         """
         if not self._precomputed:
             raise RuntimeError(
-                "precompute() must be called before find_path()."
+                "call bn.precompute([risk_node]) + bn.save_precomputed(), "
+                "then load_precomputed() before find_path()."
             )
 
         # --- Bayesian network inference ---------------------------------
