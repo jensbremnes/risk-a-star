@@ -1,6 +1,9 @@
 # Examples (local only)
 /examples/
 
+# Local geobn clone
+/geobn/
+
 # Claude
 CLAUDE.md
 .claude/

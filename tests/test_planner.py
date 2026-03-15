@@ -135,3 +135,41 @@ class TestOutOfBounds:
         far_away = (0.0, 0.0)
         with pytest.raises(ValueError, match="goal"):
             planner.find_path(START_LATLON, far_away)
+
+
+# ---------------------------------------------------------------------------
+# Precomputed persistence
+# ---------------------------------------------------------------------------
+
+class TestPrecomputedPersistence:
+    def test_save_requires_precompute(self, tiny_bn, tmp_path):
+        planner = _make_planner(tiny_bn)
+        with pytest.raises(RuntimeError):
+            planner.save_precomputed(tmp_path / "table.npz")
+
+    def test_save_creates_file(self, tiny_bn, tmp_path):
+        planner = _make_planner(tiny_bn)
+        planner.precompute()
+        out = tmp_path / "table.npz"
+        planner.save_precomputed(out)
+        assert out.exists()
+
+    def test_load_marks_ready(self, tiny_bn, tmp_path):
+        planner = _make_planner(tiny_bn)
+        planner.precompute()
+        path = tmp_path / "table.npz"
+        planner.save_precomputed(path)
+        fresh = _make_planner(tiny_bn)
+        assert not fresh._precomputed
+        fresh.load_precomputed(path)
+        assert fresh._precomputed
+
+    def test_load_then_find_path(self, tiny_bn, tmp_path):
+        planner = _make_planner(tiny_bn)
+        planner.precompute()
+        path = tmp_path / "table.npz"
+        planner.save_precomputed(path)
+        fresh = _make_planner(tiny_bn)
+        fresh.load_precomputed(path)
+        result = fresh.find_path(START_LATLON, GOAL_LATLON)
+        assert len(result.waypoints) >= 2

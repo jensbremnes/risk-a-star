@@ -4,6 +4,13 @@ version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = ["geobn>=0.1", "numpy", "pyproj", "affine"]
 
+# TODO: remove [tool.uv.sources] below once geobn 0.2.0 is published to PyPI.
+# geobn/  is a local clone (gitignored) needed until save_precomputed() /
+# load_precomputed() land in a released version. Other contributors must clone
+# https://github.com/jensbremnes/geobn.git into this directory to use it.
+[tool.uv.sources]
+geobn = { path = "geobn", editable = true }
+
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov"]
 

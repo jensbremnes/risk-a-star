@@ -43,26 +43,29 @@ Typical use cases include AUV mission planning over seafloor hazard maps, mounta
 and search-and-rescue route optimisation over avalanche or terrain-difficulty models,
 and any domain where a spatial risk raster can be derived from a probabilistic model.
 The public API is deliberately minimal: construct a `RiskAwareAStarPlanner`, call
-`precompute()` once, then call `find_path()` for each query.
+`precompute()` once offline (or `load_precomputed()` at runtime), then call `find_path()` for each query.
 
 ---
 
 ## How it works
 
 ```
-Raster inputs (GeoTIFF / NumPy array / constant)
-        │
-        ▼
-geobn BayesianNetwork  ─── precompute() ──→  cached inference table
-        │
-        │  infer()
-        ▼
-InferenceResult  →  extract_risk_grid()  →  2-D risk array  [0, 1]
-                                                    │
-                                    A* (risk-weighted cost)
-                                                    │
-                                              PathResult
-                                    (waypoints · cost · distance)
+OFFLINE (workstation)
+───────────────────────────────────────────────────────────────────
+Raster inputs  →  geobn BayesianNetwork
+                        │
+                   precompute()  →  save_precomputed("table.npz")
+
+RUNTIME (robot)
+───────────────────────────────────────────────────────────────────
+geobn BayesianNetwork  +  load_precomputed("table.npz")
+                        │
+                   infer()  →  extract_risk_grid()  →  2-D risk array  [0, 1]
+                                                               │
+                                               A* (risk-weighted cost)
+                                                               │
+                                                         PathResult
+                                               (waypoints · cost · distance)
 ```
 
 **Step cost formula**
@@ -99,6 +102,8 @@ pip install risk-aware-a-star
 The example below uses `ArraySource` so it runs without any external data files.
 Swap the synthetic arrays for your own GeoTIFFs via `geobn.RasterSource` and
 replace the placeholder coordinates with your survey start/end points.
+
+**OFFLINE** — run once on a workstation to build the inference table:
 
 ```python
 import numpy as np
@@ -143,8 +148,38 @@ planner = RiskAwareAStarPlanner(
     connectivity=8,
 )
 planner.precompute()
+planner.save_precomputed("table.npz")              # persist for the robot
+```
 
-# ── 4. Plan a mission route ───────────────────────────────────────────────────
+**RUNTIME** — load the cached table on the robot (no pgmpy calls):
+
+```python
+import geobn
+from risk_aware_a_star import RiskAwareAStarPlanner
+
+# BN must be fully configured with the same inputs and discretizations as offline.
+# The .npz caches the combinatorial inference table, not the spatial rasters.
+bn = geobn.load("auv_mission.bif")
+bn.set_input("Slope",             geobn.RasterSource("slope.tif"))
+bn.set_input("Ruggedness",        geobn.RasterSource("ruggedness.tif"))
+bn.set_input("Current",           geobn.RasterSource("current.tif"))
+bn.set_input("Altitude_setpoint", geobn.ConstantSource(5.0))
+
+bn.set_discretization("Slope",             [0,     10,    15,    90],  ["Low", "Medium", "High"])
+bn.set_discretization("Ruggedness",        [0,     0.005, 0.01,  1.0], ["Low", "Medium", "High"])
+bn.set_discretization("Current",           [0,     0.08,  0.15,  2.0], ["Low", "Medium", "High"])
+bn.set_discretization("Altitude_setpoint", [0,     5,     20,  200],   ["Close", "Moderate", "Far"])
+
+planner = RiskAwareAStarPlanner(
+    bn=bn,
+    risk_node="auv_risk",
+    risk_state={"Medium": 0.5, "High": 1.0},
+    risk_weight=5.0,
+    connectivity=8,
+)
+planner.load_precomputed("table.npz")              # replaces precompute()
+
+# ── Plan a mission route ──────────────────────────────────────────────────────
 START = (61.300, 5.050)   # (lat, lon) WGS84 — replace with your start point
 GOAL  = (61.318, 5.085)   # (lat, lon) WGS84 — replace with your goal point
 
@@ -152,14 +187,6 @@ result = planner.find_path(START, GOAL, return_coords="latlon")
 print(f"{len(result.waypoints)} waypoints  "
       f"distance={result.total_distance_px:.0f} px  "
       f"cost={result.total_cost:.2f}")
-
-# ── 5. Export interactive risk map ────────────────────────────────────────────
-result.inference_result.show_map(
-    output_dir=".",
-    filename="auv_mission_map.html",
-    show_probability_bands=True,
-    show_category=True,
-)
 ```
 
 **Using real GeoTIFFs** — replace the `ArraySource` calls with `RasterSource`:
@@ -201,6 +228,22 @@ the cached table for fast O(H×W) inference.
 
 ---
 
+**`save_precomputed(path) → None`**
+
+Serialise the cached inference table to a `.npz` file (offline step). Call after
+`precompute()` to persist the table for later use on resource-constrained systems.
+
+---
+
+**`load_precomputed(path) → None`**
+
+Restore the inference table from a `.npz` file (runtime step, replaces `precompute()`).
+No pgmpy calls are made. The `bn` object must still be fully configured with the same
+inputs and discretizations used offline — the `.npz` caches the combinatorial table,
+not the spatial rasters.
+
+---
+
 **`find_path(start, goal, return_coords="latlon") → PathResult`**
 
 Plans a risk-aware path from `start` to `goal`.
@@ -219,9 +262,9 @@ Plans a risk-aware path from `start` to `goal`.
 | `"crs"` | `(x, y)` float tuples | Native CRS of the raster |
 | `"pixel"` | `(row, col)` int tuples | Grid pixel indices |
 
-Raises `RuntimeError` if `precompute()` has not been called, `ValueError` if
-`start` or `goal` is outside the grid bounds, and `RuntimeError` if no path
-exists between the two points.
+Raises `RuntimeError` if neither `precompute()` nor `load_precomputed()` has been
+called, `ValueError` if `start` or `goal` is outside the grid bounds, and
+`RuntimeError` if no path exists between the two points.
 
 ---
 
@@ -280,14 +323,18 @@ Outputs `lyngen_risk_map.html` in the current directory.
 
 ### Tautra — AUV seafloor route
 
-```bash
-uv run examples/tautra_route/run_auv_route.py
-```
-
 Real GeoTIFF rasters at ~10 m resolution (374×358 grid) over the Tautra reef,
 Trondheim Fjord. Eight-node BN with two intermediate nodes. Plans a NW→SE
 risk-optimal AUV route across the reef, avoiding shallow and high-current zones.
-Outputs `examples/tautra_route/output/auv_route_map.html`.
+Demonstrates the offline / runtime two-phase pattern.
+
+```bash
+# Step 1 — offline: build and save the inference table
+uv run examples/tautra_route/precompute_offline.py   # creates tautra_table.npz
+
+# Step 2 — runtime: load table and plan the route
+uv run examples/tautra_route/run_auv_route.py        # opens auv_route_map.html
+```
 
 ---
 

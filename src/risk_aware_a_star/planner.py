@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 
@@ -56,6 +57,9 @@ class RiskAwareAStarPlanner:
         Higher values produce more risk-averse routes.
     connectivity:
         ``4`` (cardinal) or ``8`` (cardinal + diagonal, default).
+
+    After construction, call :meth:`precompute` (offline) or
+    :meth:`load_precomputed` (runtime) before :meth:`find_path`.
     """
 
     def __init__(
@@ -83,6 +87,35 @@ class RiskAwareAStarPlanner:
         self._bn.precompute(query=[self._risk_node])
         self._precomputed = True
 
+    def save_precomputed(self, path: str | Path) -> None:
+        """Serialise the cached inference table to *path* (.npz).
+
+        Call after :meth:`precompute` to persist the table for later use on
+        resource-constrained systems (e.g. a robot).
+
+        Raises
+        ------
+        RuntimeError
+            If :meth:`precompute` has not been called (raised by geobn).
+        """
+        self._bn.save_precomputed(path)
+
+    def load_precomputed(self, path: str | Path) -> None:
+        """Restore a precomputed inference table from *path* (.npz).
+
+        Use instead of :meth:`precompute` at runtime.  After a successful load,
+        :meth:`find_path` can be called immediately — no pgmpy calls are made.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the file does not exist.
+        ValueError
+            If the file was saved with a different BN configuration.
+        """
+        self._bn.load_precomputed(path)
+        self._precomputed = True
+
     # ------------------------------------------------------------------
     def find_path(
         self,
@@ -107,7 +140,7 @@ class RiskAwareAStarPlanner:
         Raises
         ------
         RuntimeError
-            If :meth:`precompute` has not been called.
+            If neither :meth:`precompute` nor :meth:`load_precomputed` has been called.
         ValueError
             If *start* or *goal* is outside the grid bounds.
         RuntimeError
