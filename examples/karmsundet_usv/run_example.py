@@ -273,7 +273,7 @@ def main() -> None:
             {"medium": 0.5, "high": 1.0},
             risk_weight=500.0,
             connectivity=8,
-            risk_dilation_m=200,
+            risk_inflation_m=200,
             risk_exponent=3,
             risk_threshold=0.4,
         )
@@ -288,7 +288,7 @@ def main() -> None:
             {"medium": 0.5, "high": 1.0},
             risk_weight=500.0,
             connectivity=8,
-            risk_dilation_m=200,
+            risk_inflation_m=200,
             risk_exponent=3,
             risk_threshold=0.4,
         )

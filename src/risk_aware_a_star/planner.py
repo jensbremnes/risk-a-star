@@ -13,7 +13,7 @@ from ._coords import (
     _path_length_px,
     latlon_to_pixel,
 )
-from ._filter import dilate_risk
+from ._filter import inflate_risk
 from ._risk import extract_risk_grid
 
 
@@ -58,11 +58,11 @@ class RiskAwareAStarPlanner:
         Higher values produce more risk-averse routes.
     connectivity:
         ``4`` (cardinal) or ``8`` (cardinal + diagonal, default).
-    risk_dilation_m:
+    risk_inflation_m:
         If > 0, apply a circular maximum filter of this radius (metres) to the
         risk grid before planning.  Each cell's risk becomes the highest risk
         found within the given distance, creating conservative buffer zones
-        around high-risk areas.  Default 0.0 (no dilation).
+        around high-risk areas.  Default 0.0 (no inflation).
     risk_exponent:
         Exponent applied to risk values in the A* cost function.  Default 1.0
         (linear).  Values > 1 penalise high-risk cells disproportionately more
@@ -83,7 +83,7 @@ class RiskAwareAStarPlanner:
         risk_state: str | dict[str, float],
         risk_weight: float = 1.0,
         connectivity: int = 8,
-        risk_dilation_m: float = 0.0,
+        risk_inflation_m: float = 0.0,
         risk_exponent: float = 1.0,
         risk_threshold: float = 0.0,
     ) -> None:
@@ -92,7 +92,7 @@ class RiskAwareAStarPlanner:
         self._risk_state = risk_state
         self._risk_weight = risk_weight
         self._connectivity = connectivity
-        self._risk_dilation_m = risk_dilation_m
+        self._risk_inflation_m = risk_inflation_m
         self._risk_exponent = risk_exponent
         self._risk_threshold = risk_threshold
         self._precomputed = bool(getattr(bn, '_inference_table', {}))
@@ -158,10 +158,10 @@ class RiskAwareAStarPlanner:
             self._risk_grid = extract_risk_grid(
                 self._infer_result, self._risk_node, self._risk_state
             )
-            if self._risk_dilation_m > 0.0:
-                self._risk_grid = dilate_risk(
+            if self._risk_inflation_m > 0.0:
+                self._risk_grid = inflate_risk(
                     self._risk_grid,
-                    self._risk_dilation_m,
+                    self._risk_inflation_m,
                     self._infer_result.transform,
                     self._infer_result.crs,
                 )

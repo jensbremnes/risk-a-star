@@ -6,6 +6,10 @@
 
 Risk-optimal path planning with Bayesian network risk models. In milliseconds.
 
+- **Millisecond replanning** — A\* completes in ~17 ms on a 400 × 400 grid; risk-map caching makes re-routes as fast as A\* alone.
+- **Full Bayesian network support** — arbitrarily complex probabilistic risk models precomputed offline; runtime needs only numpy — no pgmpy on the robot.
+- **Risk inflation** — a configurable spatial buffer zone expands high-risk areas by a chosen radius, producing conservative, obstacle-clearing paths with one parameter.
+
 ![demo](docs/assets/demo.gif)
 
 `risk-aware-a-star` delivers real-time, risk-optimal path planning even when the
@@ -230,15 +234,17 @@ Returned by `RiskAwareAStarPlanner.find_path()`.
 
 ## Example
 
-### USV collision risk — coastal passage planning
+### USV route planning — Karmsundet strait, Norway
 
 ```bash
-uv run python docs/usv_collision_risk/run_example.py
+uv run --extra examples python examples/karmsundet_usv/run_example.py
 ```
 
-Synthetic 80×80 grid. Two-node BN: `vessel_traffic` + `sea_state` → `collision_risk`.
-Demonstrates the offline/runtime two-phase pattern and risk-aware route deviation
-around high-traffic shipping lanes.
+Real EMODnet bathymetry, 150×275 grid. Ten-node BN: `water_depth`, `wave_height`,
+`wind_speed`, `current_speed`, `vessel_traffic`, `fog_fraction` → `grounding_risk`,
+`collision_risk`, `navigation_difficulty` → `usv_risk`. Plans a Haugesund harbour
+to south-exit passage across six weather frames from calm to storm, outputting an
+animated GIF and an interactive Leaflet risk map.
 
 ---
 

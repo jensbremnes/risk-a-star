@@ -1,4 +1,4 @@
-"""Spatial maximum filter (risk dilation) for the risk grid."""
+"""Spatial maximum filter (risk inflation) for the risk grid."""
 from __future__ import annotations
 import math
 import numpy as np
@@ -23,7 +23,7 @@ def _pixel_size_metres(transform, crs_str: str) -> tuple[float, float]:
     return dx, dy
 
 
-def dilate_risk(
+def inflate_risk(
     risk_grid: np.ndarray,
     radius_m: float,
     transform,
