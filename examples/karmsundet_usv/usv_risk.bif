@@ -69,9 +69,9 @@ probability ( grounding_risk | water_depth, current_speed ) {
   (very_shallow, weak)     0.05000000, 0.15000000, 0.80000000;
   (very_shallow, moderate) 0.03000000, 0.10000000, 0.87000000;
   (very_shallow, strong)   0.01000000, 0.05000000, 0.94000000;
-  (shallow, weak)          0.25000000, 0.35000000, 0.40000000;
-  (shallow, moderate)      0.12000000, 0.30000000, 0.58000000;
-  (shallow, strong)        0.04000000, 0.18000000, 0.78000000;
+  (shallow, weak)          0.01000000, 0.06000000, 0.93000000;
+  (shallow, moderate)      0.01000000, 0.03000000, 0.96000000;
+  (shallow, strong)        0.00500000, 0.01500000, 0.98000000;
   (moderate, weak)         0.80000000, 0.15000000, 0.05000000;
   (moderate, moderate)     0.60000000, 0.30000000, 0.10000000;
   (moderate, strong)       0.35000000, 0.42000000, 0.23000000;
