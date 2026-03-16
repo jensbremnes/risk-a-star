@@ -22,6 +22,8 @@ htmlcov/
 
 # Generated output
 *.html
+examples/*/cache/
+examples/*/output/
 
 # OS
 .DS_Store

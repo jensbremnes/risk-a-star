@@ -12,6 +12,7 @@ dependencies = ["geobn>=0.1", "numpy", "numba", "pyproj", "affine"]
 geobn = { path = "geobn", editable = true }
 
 [project.optional-dependencies]
+examples = ["contextily", "matplotlib", "Pillow"]
 dev = ["pytest", "pytest-cov"]
 
 [build-system]

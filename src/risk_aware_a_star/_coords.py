@@ -28,8 +28,8 @@ def latlon_to_pixel(
     lat: float, lon: float, transform: Affine, crs: str
 ) -> tuple[int, int]:
     """Convert WGS84 (lat, lon) to pixel (row, col)."""
-    transformer = Transformer.from_crs("EPSG:4326", crs, always_xy=False)
-    x, y = transformer.transform(lat, lon)
+    transformer = Transformer.from_crs("EPSG:4326", crs, always_xy=True)
+    x, y = transformer.transform(lon, lat)
     return crs_to_pixel(x, y, transform)
 
 
@@ -38,8 +38,8 @@ def pixel_to_latlon(
 ) -> tuple[float, float]:
     """Convert pixel (row, col) to WGS84 (lat, lon)."""
     x, y = pixel_to_crs(row, col, transform)
-    transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=False)
-    lat, lon = transformer.transform(x, y)
+    transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+    lon, lat = transformer.transform(x, y)
     return lat, lon
 
 
