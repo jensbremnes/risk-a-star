@@ -30,8 +30,8 @@ from risk_aware_a_star import RiskAwareAStarPlanner
 # Constants
 # ---------------------------------------------------------------------------
 
-WEST, SOUTH, EAST, NORTH = 5.15, 59.25, 5.55, 59.55
-CRS, RESOLUTION = "EPSG:4326", 0.002          # 150 rows × 200 cols
+WEST, SOUTH, EAST, NORTH = 5.00, 59.25, 5.55, 59.55
+CRS, RESOLUTION = "EPSG:4326", 0.002          # 150 rows × 275 cols
 START, GOAL = (59.44, 5.19), (59.29, 5.17)    # Haugesund harbour → south exit
 
 HERE        = Path(__file__).parent
@@ -56,10 +56,10 @@ FRAMES = [
 
 
 def _synthetic_depth(rows: int, cols: int) -> np.ndarray:
-    """Fallback bathymetry: channel cols 15–100 covers START col≈65, GOAL col≈35."""
+    """Fallback bathymetry: channel cols 15–110 covers START col≈95, GOAL col≈85."""
     depth = np.full((rows, cols), np.nan, dtype=np.float32)
     for r in range(rows):
-        depth[r, 15:100] = 10.0 + 70.0 * (r / max(rows - 1, 1))
+        depth[r, 15:110] = 10.0 + 70.0 * (r / max(rows - 1, 1))
     return depth
 
 
@@ -271,9 +271,12 @@ def main() -> None:
         print("\nLoading precomputed inference table ...")
         planner = RiskAwareAStarPlanner(
             bn, "usv_risk",
-            {"medium": 0.4, "high": 1.0},
-            risk_weight=3.0,
+            {"medium": 0.5, "high": 1.0},
+            risk_weight=100.0,
             connectivity=8,
+            risk_dilation_m=200,
+            risk_exponent=3,
+            risk_threshold=0.3,
         )
         planner.load_precomputed(TABLE_PATH)
     else:
@@ -283,9 +286,12 @@ def main() -> None:
         print(f"  Saved → {TABLE_PATH}")
         planner = RiskAwareAStarPlanner(
             bn, "usv_risk",
-            {"medium": 0.4, "high": 1.0},
-            risk_weight=3.0,
+            {"medium": 0.5, "high": 1.0},
+            risk_weight=100.0,
             connectivity=8,
+            risk_dilation_m=200,
+            risk_exponent=3,
+            risk_threshold=0.3,
         )
 
     # ------------------------------------------------------------------

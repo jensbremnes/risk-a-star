@@ -70,7 +70,7 @@ def _heap_pop(hf, hn, size):
 
 @numba.njit(cache=True)  # pragma: no cover
 def _astar_core(risk_grid, passable, sr, sc, gr, gc,
-                risk_weight, offsets, max_nodes):
+                risk_weight, risk_exponent, risk_threshold, offsets, max_nodes):
     """Core A* loop compiled to native code.
 
     Returns (path_buf, path_len, cost).  path_len == 0 means no path found.
@@ -141,7 +141,10 @@ def _astar_core(risk_grid, passable, sr, sc, gr, gc,
                 continue
 
             dist_px = 1.4142135623730951 if (dr != 0 and dc != 0) else 1.0
-            step_cost = dist_px * (1.0 + risk_weight * risk_grid[nr, nc])
+            r_above = risk_grid[nr, nc] - risk_threshold
+            if r_above < 0.0:
+                r_above = 0.0
+            step_cost = dist_px * (1.0 + risk_weight * r_above ** risk_exponent)
             tentative_g = g_score[flat] + step_cost
 
             if tentative_g < g_score[nflat]:
@@ -160,6 +163,8 @@ def astar(
     risk_weight: float = 1.0,
     connectivity: int = 8,
     max_nodes: int = 500 * 500,
+    risk_exponent: float = 1.0,
+    risk_threshold: float = 0.0,
 ) -> tuple[list[tuple[int, int]], float] | None:
     """Find the minimum-cost path through *risk_grid* from *start* to *goal*.
 
@@ -172,11 +177,20 @@ def astar(
         ``(row, col)`` pixel coordinates.
     risk_weight:
         Controls the trade-off between distance and risk.
-        Cost of a step = ``dist_px * (1 + risk_weight * risk_grid[r, c])``.
+        Cost of a step = ``dist_px * (1 + risk_weight * risk_grid[r, c] ** risk_exponent)``.
     connectivity:
         ``4`` (cardinal only) or ``8`` (cardinal + diagonal).
     max_nodes:
         Safety limit on the number of nodes expanded.
+    risk_exponent:
+        Exponent applied to risk before weighting (default 1.0 = linear).
+        Values > 1 penalise high-risk cells disproportionately more than
+        low-risk cells (e.g. exponent=2: ratio 0.9²/0.1² = 81× vs 9×).
+    risk_threshold:
+        Risk values below this level incur zero penalty (default 0.0).
+        Combined with ``risk_exponent > 1`` this produces the desired
+        behaviour: short direct routes in low-risk conditions (all cells
+        below threshold) and longer safer detours when risk is high.
 
     Returns
     -------
@@ -197,7 +211,8 @@ def astar(
     offsets = _OFFSETS_4 if connectivity == 4 else _OFFSETS_8
     path_buf, path_len, cost = _astar_core(
         risk_grid, passable, sr, sc, gr, gc,
-        float(risk_weight), offsets, int(max_nodes),
+        float(risk_weight), float(risk_exponent), float(risk_threshold),
+        offsets, int(max_nodes),
     )
 
     if path_len == 0:
