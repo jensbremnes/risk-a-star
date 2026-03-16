@@ -8,7 +8,7 @@ Risk-optimal path planning with Bayesian network risk models. In milliseconds.
 
 - **Blazing fast** — Completes in ~17 ms on a 400 × 400 grid using a
   Numba-JIT core; risk map caching makes subsequent routes as fast as A* alone.
-- **Full Bayesian network support** — arbitrarily complex probabilistic risk models precomputed offline; runtime needs only numpy — no pgmpy on the robot.
+- **Full Bayesian network support** — arbitrarily complex probabilistic risk models precomputed offline; runtime only needs numpy look-up table — no expensive inference calls.
 - **Risk inflation** — a configurable spatial buffer zone expands high-risk areas by a chosen radius, producing conservative, risk-clearing paths with one parameter.
 - **Dynamic replanning** — call `update_input()` when conditions change; the risk grid is invalidated and rebuilt automatically on the next `find_path()` call, static inputs stay cached.
 
