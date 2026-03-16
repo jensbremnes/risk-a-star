@@ -9,6 +9,7 @@ Risk-optimal path planning with Bayesian network risk models. In milliseconds.
 - **Millisecond replanning** — A\* completes in ~17 ms on a 400 × 400 grid; risk-map caching makes re-routes as fast as A\* alone.
 - **Full Bayesian network support** — arbitrarily complex probabilistic risk models precomputed offline; runtime needs only numpy — no pgmpy on the robot.
 - **Risk inflation** — a configurable spatial buffer zone expands high-risk areas by a chosen radius, producing conservative, obstacle-clearing paths with one parameter.
+- **Dynamic replanning** — call `update_input()` when conditions change; the risk grid is invalidated and rebuilt automatically on the next `find_path()` call, static inputs stay cached.
 
 ![demo](docs/assets/demo.gif)
 
