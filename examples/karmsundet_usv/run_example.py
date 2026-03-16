@@ -46,7 +46,6 @@ FRAMES = [
     {"wave": 0.8, "wind":  5.0, "fog": 0.08, "label": "Light chop"},
     {"wave": 1.4, "wind":  9.0, "fog": 0.22, "label": "Moderate sea"},
     {"wave": 2.0, "wind": 14.0, "fog": 0.42, "label": "Rough sea"},
-    {"wave": 2.8, "wind": 18.0, "fog": 0.64, "label": "Heavy sea + fog"},
     {"wave": 3.5, "wind": 23.0, "fog": 0.88, "label": "Storm + dense fog"},
 ]
 
@@ -272,11 +271,11 @@ def main() -> None:
         planner = RiskAwareAStarPlanner(
             bn, "usv_risk",
             {"medium": 0.5, "high": 1.0},
-            risk_weight=100.0,
+            risk_weight=500.0,
             connectivity=8,
             risk_dilation_m=200,
             risk_exponent=3,
-            risk_threshold=0.3,
+            risk_threshold=0.4,
         )
         planner.load_precomputed(TABLE_PATH)
     else:
@@ -287,11 +286,11 @@ def main() -> None:
         planner = RiskAwareAStarPlanner(
             bn, "usv_risk",
             {"medium": 0.5, "high": 1.0},
-            risk_weight=100.0,
+            risk_weight=500.0,
             connectivity=8,
             risk_dilation_m=200,
             risk_exponent=3,
-            risk_threshold=0.3,
+            risk_threshold=0.4,
         )
 
     # ------------------------------------------------------------------
